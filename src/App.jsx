@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Utensils, Calendar, Clock, Star, X, Menu as MenuIcon, 
   MapPin, Phone, ArrowRight, ChevronDown, Cake, Sun, Moon, 
   ChefHat, ShoppingBag, Crown, Plus, Minus, Trash2, MessageSquare,
-  Lock, Edit3, Save, LogOut, Image as ImageIcon
+  Lock, Edit3, Save, LogOut, Image as ImageIcon, Sparkles, Send, Bot
 } from 'lucide-react';
+
+// --- GEMINI API SETUP ---
+const apiKey = ""; // The execution environment will provide this key at runtime.
 
 // --- INITIAL DATA (Default Content) ---
 const INITIAL_MENU = {
@@ -53,7 +56,7 @@ const App = () => {
   const [scrolled, setScrolled] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   
-  // --- DYNAMIC DATA (Loaded from Storage or Defaults) ---
+  // --- DYNAMIC DATA ---
   const [menuData, setMenuData] = useState(() => {
     const saved = localStorage.getItem('rajwadaMenu');
     return saved ? JSON.parse(saved) : INITIAL_MENU;
@@ -64,7 +67,6 @@ const App = () => {
     return saved ? JSON.parse(saved) : INITIAL_SWEETS;
   });
 
-  // Save to Storage whenever data changes
   useEffect(() => { localStorage.setItem('rajwadaMenu', JSON.stringify(menuData)); }, [menuData]);
   useEffect(() => { localStorage.setItem('rajwadaSweets', JSON.stringify(sweetsData)); }, [sweetsData]);
 
@@ -78,6 +80,9 @@ const App = () => {
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [adminPin, setAdminPin] = useState('');
+
+  // AI Chat State
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -211,7 +216,7 @@ const App = () => {
         </div>
       </nav>
 
-      {/* Cart Drawer & Checkout Modal (Same as before) */}
+      {/* Cart Drawer & Checkout Modal */}
       {isCartOpen && (
         <div className="fixed inset-0 z-[100] flex justify-end">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsCartOpen(false)} />
@@ -284,6 +289,19 @@ const App = () => {
         </div>
       )}
 
+      {/* AI ROYAL CONCIERGE CHATBOT */}
+      <RoyalConcierge theme={theme} isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} menuData={menuData} />
+      
+      {/* Floating Chat Button */}
+      {!isChatOpen && activeTab !== 'Admin' && (
+        <button 
+          onClick={() => setIsChatOpen(true)}
+          className="fixed bottom-6 right-6 z-50 bg-[#C5A059] text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform animate-bounce"
+        >
+          <Bot size={28} />
+        </button>
+      )}
+
       {/* Mobile Sidebar */}
       {isMenuOpen && (
         <div className="fixed inset-0 z-[60] bg-[#111] text-white flex flex-col items-center justify-center gap-8 animate-in fade-in zoom-in duration-300">
@@ -331,9 +349,109 @@ const App = () => {
         </div>
         <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-white/10 flex justify-between items-center">
           <p className="text-xs text-gray-500 tracking-widest">&copy; {new Date().getFullYear()} RAJWADA RESTAURANT. ALL RIGHTS RESERVED.</p>
-          <button onClick={() => setShowAdminLogin(true)} className="text-gray-700 hover:text-[#C5A059] transition-colors"><Lock size={14} /></button>
+          <button 
+            onClick={() => setShowAdminLogin(true)} 
+            className="text-gray-500 hover:text-[#C5A059] transition-colors p-2"
+            title="Admin Login"
+          >
+            <Lock size={16} />
+          </button>
         </div>
       </footer>
+    </div>
+  );
+};
+
+// --- AI COMPONENT: ROYAL CONCIERGE ---
+const RoyalConcierge = ({ theme, isOpen, onClose, menuData }) => {
+  const [messages, setMessages] = useState([
+    { role: 'ai', text: 'Namaste! I am your Royal Concierge. How may I assist you with our menu today?' }
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages]);
+
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+
+    const userMsg = input;
+    setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      // Construct context from menu data for the AI
+      const menuContext = Object.entries(menuData).map(([cat, items]) => 
+        `${cat}: ${items.map(i => i.name + ' (' + i.price + ')').join(', ')}`
+      ).join('. ');
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: `You are the polite, regal Royal Concierge of Rajwada Restaurant in Jagdishpur, Amethi. 
+                Answer briefly in a helpful, friendly tone. 
+                Menu Context: ${menuContext}. 
+                Location: Near Maruti Showroom, Kathaura. 
+                User asked: ${userMsg}`
+              }]
+            }]
+          })
+        }
+      );
+      
+      const data = await response.json();
+      const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Apologies, I am momentarily distracted. Please ask again.";
+      
+      setMessages(prev => [...prev, { role: 'ai', text: aiText }]);
+    } catch (error) {
+      setMessages(prev => [...prev, { role: 'ai', text: "Forgive me, connection to the palace network is weak." }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className={`fixed bottom-24 right-6 w-80 h-96 ${theme.cardBg} border ${theme.border} rounded-lg shadow-2xl z-50 flex flex-col animate-in slide-in-from-bottom-10`}>
+      <div className="bg-[#C5A059] p-4 rounded-t-lg flex justify-between items-center text-white">
+        <div className="flex items-center gap-2">
+          <Bot size={20} />
+          <span className="font-serif font-bold">Royal Concierge</span>
+        </div>
+        <button onClick={onClose}><X size={18} /></button>
+      </div>
+      
+      <div className="flex-grow overflow-y-auto p-4 space-y-3" ref={scrollRef}>
+        {messages.map((msg, idx) => (
+          <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[80%] p-3 rounded-lg text-sm ${msg.role === 'user' ? 'bg-[#C5A059] text-white' : 'bg-gray-800 text-gray-200'}`}>
+              {msg.text}
+            </div>
+          </div>
+        ))}
+        {isLoading && <div className="text-xs text-gray-500 italic ml-2">The Concierge is thinking...</div>}
+      </div>
+
+      <form onSubmit={handleSend} className="p-3 border-t border-gray-700 flex gap-2">
+        <input 
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Ask about food..."
+          className="flex-grow bg-transparent border border-gray-600 rounded px-3 py-2 text-sm text-gray-300 focus:border-[#C5A059] outline-none"
+        />
+        <button type="submit" className="bg-[#C5A059] text-white p-2 rounded hover:bg-[#a38446]"><Send size={16} /></button>
+      </form>
     </div>
   );
 };
@@ -342,6 +460,7 @@ const App = () => {
 const AdminPanel = ({ theme, menuData, setMenuData, sweetsData, setSweetsData, onLogout }) => {
   const [adminTab, setAdminTab] = useState('menu');
   const [newItem, setNewItem] = useState({ category: 'Specials', name: '', price: '', desc: '', img: '' });
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const handleAddItem = (e) => {
     e.preventDefault();
@@ -369,6 +488,38 @@ const AdminPanel = ({ theme, menuData, setMenuData, sweetsData, setSweetsData, o
     const updated = [...sweetsData];
     updated.splice(index, 1);
     setSweetsData(updated);
+  };
+
+  // --- AI GENERATOR FUNCTION ---
+  const generateDescription = async () => {
+    if (!newItem.name) {
+      alert("Please enter a dish name first.");
+      return;
+    }
+    setIsGenerating(true);
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: `Write a short, mouth-watering, luxurious description (max 12 words) for a fine dining Indian dish named "${newItem.name}".`
+              }]
+            }]
+          })
+        }
+      );
+      const data = await response.json();
+      const desc = data.candidates?.[0]?.content?.parts?.[0]?.text || "A royal delicacy prepared with the finest ingredients.";
+      setNewItem(prev => ({ ...prev, desc: desc.trim() }));
+    } catch (error) {
+      alert("Failed to generate description. Please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -404,7 +555,28 @@ const AdminPanel = ({ theme, menuData, setMenuData, sweetsData, setSweetsData, o
              )}
              <div><input placeholder="Item Name" required value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} className={`w-full p-3 rounded bg-transparent border ${theme.border} outline-none text-sm`} /></div>
              <div><input placeholder="Price (e.g. ₹200)" required value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} className={`w-full p-3 rounded bg-transparent border ${theme.border} outline-none text-sm`} /></div>
-             {adminTab === 'menu' && <div><input placeholder="Description" required value={newItem.desc} onChange={e => setNewItem({...newItem, desc: e.target.value})} className={`w-full p-3 rounded bg-transparent border ${theme.border} outline-none text-sm`} /></div>}
+             
+             {adminTab === 'menu' && (
+               <div className="relative">
+                 <input 
+                    placeholder="Description" 
+                    required 
+                    value={newItem.desc} 
+                    onChange={e => setNewItem({...newItem, desc: e.target.value})} 
+                    className={`w-full p-3 pr-10 rounded bg-transparent border ${theme.border} outline-none text-sm`} 
+                 />
+                 <button 
+                    type="button" 
+                    onClick={generateDescription}
+                    disabled={isGenerating}
+                    className="absolute right-2 top-2 text-[#C5A059] hover:bg-[#C5A059]/10 p-1 rounded transition-colors"
+                    title="Generate with AI"
+                 >
+                    {isGenerating ? <div className="animate-spin h-4 w-4 border-2 border-[#C5A059] border-t-transparent rounded-full" /> : <Sparkles size={18} />}
+                 </button>
+               </div>
+             )}
+
              <div><input placeholder="Image URL (Optional)" value={newItem.img} onChange={e => setNewItem({...newItem, img: e.target.value})} className={`w-full p-3 rounded bg-transparent border ${theme.border} outline-none text-sm`} /></div>
              <button className="w-full py-3 bg-[#C5A059] text-white font-bold rounded hover:bg-white hover:text-black transition-colors">Add to {adminTab === 'menu' ? 'Menu' : 'Shop'}</button>
           </form>
@@ -576,9 +748,29 @@ const EventsSection = ({ theme }) => (
 );
 
 const ContactSection = ({ theme }) => (
-  <div className="pt-32 pb-20 px-6 max-w-4xl mx-auto text-center">
+  <div className="pt-32 pb-20 px-6 max-w-7xl mx-auto text-center">
      <h2 className={`text-4xl md:text-5xl font-serif mb-12 ${theme.text}`}>Visit Us</h2>
-     <div className={`p-8 border ${theme.border} ${theme.cardBg} shadow-sm mb-12`}><MapPin size={32} className="mx-auto text-[#C5A059] mb-6" /><p className={`${theme.subText} text-lg leading-relaxed`}>Near Maruti Showroom, Village- Kathaura,<br/>BHEL Jagdishpur, Distt.- Amethi</p></div>
+     
+     {/* Map Integration */}
+     <div className="w-full h-[400px] mb-12 rounded-lg overflow-hidden border border-[#C5A059]/30 shadow-lg relative bg-gray-900">
+        <iframe 
+          src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d14316.837895028575!2d81.5471649!3d26.2223049!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x399a6147171d9d4f%3A0x65675841d1a8e0!2sKathaura%2C%20Uttar%20Pradesh%20227817!5e0!3m2!1sen!2sin!4v1706640000000!5m2!1sen!2sin" 
+          width="100%" 
+          height="100%" 
+          style={{ border: 0, filter: theme.text === 'text-[#E5E5E5]' ? 'grayscale(1) contrast(1.2) invert(90%) hue-rotate(180deg)' : 'grayscale(0)' }} 
+          allowFullScreen="" 
+          loading="lazy" 
+          title="Rajwada Location"
+        ></iframe>
+        <div className="absolute bottom-4 right-4 bg-white/90 text-black px-4 py-2 text-xs font-bold rounded shadow">
+          Near Maruti Showroom, Kathaura
+        </div>
+     </div>
+
+     <div className={`p-8 border ${theme.border} ${theme.cardBg} shadow-sm mb-12`}>
+        <MapPin size={32} className="mx-auto text-[#C5A059] mb-6" />
+        <p className={`${theme.subText} text-lg leading-relaxed`}>Near Maruti Showroom, Village- Kathaura,<br/>BHEL Jagdishpur, Distt.- Amethi</p>
+     </div>
      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className={`p-8 border ${theme.border} ${theme.cardBg}`}><Phone size={24} className="mx-auto text-[#C5A059] mb-4" /><p className={theme.text}>+91 95804 63211</p></div>
         <div className={`p-8 border ${theme.border} ${theme.cardBg}`}><Clock size={24} className="mx-auto text-[#C5A059] mb-4" /><p className={theme.text}>Open Daily: 10:00 AM - 10:00 PM</p></div>
