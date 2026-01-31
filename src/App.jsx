@@ -3,7 +3,7 @@ import {
   Utensils, Calendar, Clock, Star, X, Menu as MenuIcon, 
   MapPin, Phone, ArrowRight, ChevronDown, Cake, Sun, Moon, 
   ChefHat, ShoppingBag, Crown, Plus, Minus, Trash2, MessageSquare,
-  Lock, Edit3, Save, LogOut, Image as ImageIcon, Sparkles, Send, Bot, AlertTriangle, QrCode, Copy
+  Lock, Edit3, Save, LogOut, Image as ImageIcon, Sparkles, Send, Bot, AlertTriangle, QrCode, Copy, CheckCircle
 } from 'lucide-react';
 
 // --- 🔴 IMPORTANT: PASTE YOUR GOOGLE GEMINI API KEY BELOW 🔴 ---
@@ -129,7 +129,7 @@ const App = () => {
     e.preventDefault();
     
     if (checkoutForm.paymentMethod === 'UPI' && !checkoutForm.txnId) {
-      alert("⚠️ Payment Verification Needed!\nPlease enter the Transaction ID (UTR) from your payment app.");
+      alert("⚠️ Payment Pending!\n\nYou must pay using the QR code or 'Tap to Pay' button FIRST, then enter the Transaction ID.");
       return;
     }
 
@@ -159,7 +159,6 @@ const App = () => {
     
     window.open(whatsappUrl, '_blank');
     
-    // Clear cart after successful redirect
     setCart([]);
     setIsCheckoutOpen(false);
     setIsCartOpen(false);
@@ -303,36 +302,56 @@ const App = () => {
                   </div>
                 </div>
 
-                {/* DYNAMIC QR CODE SECTION */}
+                {/* DYNAMIC QR CODE SECTION - REORGANIZED FOR CLARITY */}
                 {checkoutForm.paymentMethod === 'UPI' && (
                   <div className="bg-white p-6 rounded-lg text-center shadow-inner mt-4 border-2 border-[#C5A059]">
-                    <p className="text-xs text-black font-bold mb-4 uppercase tracking-widest flex items-center justify-center gap-2"><QrCode size={14}/> Scan to Pay ₹{cartTotal}</p>
-                    <div className="w-48 h-48 mx-auto bg-gray-200 mb-4 flex items-center justify-center overflow-hidden rounded-lg">
-                       {/* Using UPI ID: aishwar.mittal11@oksbi */}
-                       <img 
-                         src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=aishwar.mittal11@oksbi&pn=RajwadaRestaurant&am=${cartTotal}&cu=INR`} 
-                         alt="UPI QR Code" 
-                         className="w-full h-full object-contain" 
-                       />
+                    <div className="mb-4 pb-4 border-b border-gray-200">
+                      <h4 className="text-black font-bold flex items-center justify-center gap-2 mb-2"><span className="bg-black text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">1</span> Scan & Pay ₹{cartTotal}</h4>
+                      
+                      {/* MOBILE PAYMENT BUTTON */}
+                      <a 
+                        href={`upi://pay?pa=aishwar.mittal11@oksbi&pn=RajwadaRestaurant&am=${cartTotal}&cu=INR`}
+                        className="block md:hidden w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md mb-4 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <QrCode size={18} /> Tap to Pay (Paytm/PhonePe)
+                      </a>
+
+                      <div className="w-48 h-48 mx-auto bg-gray-200 mb-2 flex items-center justify-center overflow-hidden rounded-lg">
+                         <img 
+                           src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=aishwar.mittal11@oksbi&pn=RajwadaRestaurant&am=${cartTotal}&cu=INR`} 
+                           alt="UPI QR Code" 
+                           className="w-full h-full object-contain" 
+                         />
+                      </div>
+                      <div className="flex items-center justify-center gap-2 mb-2 text-black text-xs">
+                        <span>aishwar.mittal11@oksbi</span>
+                        <button type="button" onClick={() => navigator.clipboard.writeText('aishwar.mittal11@oksbi')}><Copy size={12}/></button>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-center gap-2 mb-2 text-black text-xs">
-                      <span>UPI ID: aishwar.mittal11@oksbi</span>
-                      <button type="button" onClick={() => navigator.clipboard.writeText('aishwar.mittal11@oksbi')}><Copy size={12}/></button>
+
+                    <div>
+                      <h4 className="text-black font-bold flex items-center justify-center gap-2 mb-2"><span className="bg-black text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">2</span> Enter Payment Proof</h4>
+                      <input 
+                        required 
+                        type="text" 
+                        value={checkoutForm.txnId} 
+                        onChange={e => setCheckoutForm({...checkoutForm, txnId: e.target.value})} 
+                        className="w-full bg-gray-100 border border-gray-300 py-3 px-4 rounded text-black text-center text-sm outline-none focus:border-[#C5A059] font-mono" 
+                        placeholder="Enter Transaction ID / UTR No."
+                      />
+                      <p className="text-[10px] text-gray-500 mt-2">Find this in your payment app after paying.</p>
                     </div>
-                    <input 
-                      required 
-                      type="text" 
-                      value={checkoutForm.txnId} 
-                      onChange={e => setCheckoutForm({...checkoutForm, txnId: e.target.value})} 
-                      className="w-full bg-gray-100 border border-gray-300 py-3 px-4 rounded text-black text-center text-sm outline-none focus:border-[#C5A059] font-mono" 
-                      placeholder="Enter Transaction ID / UTR No."
-                    />
-                    <p className="text-[10px] text-red-500 mt-2 font-bold">⚠️ IMPORTANT: Payment is not automatic. Scan QR &rarr; Pay &rarr; Enter ID here &rarr; Click Order.</p>
                   </div>
                 )}
 
                 <div className="bg-[#C5A059]/10 p-4 rounded mt-4"><div className="flex justify-between items-center mb-2"><span className={`text-sm ${theme.text}`}>Total Items:</span><span className={`font-bold ${theme.text}`}>{cart.reduce((a,b) => a + b.qty, 0)}</span></div><div className="flex justify-between items-center"><span className={`text-lg ${theme.text}`}>To Pay:</span><span className="text-xl font-bold text-[#C5A059]">₹{cartTotal}</span></div></div>
-                <button type="submit" className="w-full py-4 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold tracking-widest uppercase transition-colors flex items-center justify-center gap-2"><MessageSquare size={20} /> Order via WhatsApp</button>
+                
+                <button 
+                  type="submit" 
+                  className={`w-full py-4 text-white font-bold tracking-widest uppercase transition-colors flex items-center justify-center gap-2 ${checkoutForm.paymentMethod === 'UPI' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-[#25D366] hover:bg-[#20bd5a]'}`}
+                >
+                  {checkoutForm.paymentMethod === 'UPI' ? <><CheckCircle size={20} /> ✅ I Have Paid - Send Order</> : <><MessageSquare size={20} /> Order via WhatsApp</>}
+                </button>
               </form>
            </div>
         </div>
